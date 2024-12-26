@@ -8,13 +8,14 @@ from tkinter import filedialog, messagebox, ttk
 from tkinter.font import Font
 import threading
 from queue import Queue
+from langdetect import detect  # 添加语言检测库
 
 class ExcelTranslator:
     """Excel文件中英文翻译工具"""
     
     def __init__(self):
         """初始化翻译器和配置"""
-        self.translator = GoogleTranslator(source='zh-CN', target='en')
+        self.translation_mode = 'auto'  # 'zh2en', 'en2zh', 'auto'
         self.max_retries = 5  # 增加重试次数
         self.min_delay = 1    # 最小延迟
         self.max_delay = 5    # 最大延迟
@@ -22,11 +23,38 @@ class ExcelTranslator:
         self.batch_size = 5   # 批量处理大小
         self.cancel_flag = False  # 添加取消标志
         
+    def set_translation_mode(self, mode):
+        """设置翻译模式"""
+        self.translation_mode = mode
+    
+    def detect_language(self, text):
+        """检测文本语言，优化处理混合文本"""
+        try:
+            if not isinstance(text, str) or not text.strip():
+                return None
+            
+            # 检查是否包含中文字符
+            has_chinese = any('\u4e00' <= char <= '\u9fff' for char in text)
+            if has_chinese:
+                return 'zh-CN'  # 只要包含中文就返回中文
+            
+            # 使用 langdetect 检测其他语言
+            lang = detect(text)
+            
+            # 标准化语言代码
+            lang_map = {
+                'zh-cn': 'zh-CN',
+                'zh-tw': 'zh-CN',
+                'zh': 'zh-CN',
+                'en': 'en'
+            }
+            return lang_map.get(lang.lower(), lang)
+        except:
+            return None
+
     def translate_text(self, text):
         """翻译单条文本"""
-        # 添加取消检查
         if self.cancel_flag:
-            print("检测到取消标志，停止翻译")
             return text
             
         if not isinstance(text, str) or not text.strip():
@@ -34,14 +62,50 @@ class ExcelTranslator:
             
         print(f"\n[翻译] 开始: {text[:50]}..." if len(text) > 50 else f"\n[翻译] 开始: {text}")
         
+        # 根据翻译模式决定处理方式
+        if self.translation_mode == 'auto':
+            # 自动检测语言
+            source_lang = self.detect_language(text)
+            if not source_lang:
+                return text
+                
+            if source_lang == 'zh-CN':
+                target_lang = 'en'
+                print("[翻译] 检测到中文，翻译为英文")
+            elif source_lang == 'en':
+                target_lang = 'zh-CN'
+                print("[翻译] 检测到英文，翻译为中文")
+            else:
+                return text
+        elif self.translation_mode == 'zh2en':
+            # 强制中译英
+            if any('\u4e00' <= char <= '\u9fff' for char in text):
+                source_lang = 'zh-CN'
+                target_lang = 'en'
+                print("[翻译] 中译英模式")
+            else:
+                return text
+        else:  # en2zh
+            # 强制英译中
+            if any(c.isascii() and c.isalpha() for c in text):
+                source_lang = 'en'
+                target_lang = 'zh-CN'
+                print("[翻译] 英译中模式")
+            else:
+                return text
+        
         delay = self.min_delay
         for i in range(self.max_retries):
-            # 次重试前检查取消标志
             if self.cancel_flag:
                 print("[翻译] 检测到取消标志，停止翻译")
                 return text
                 
             try:
+                # 设置源语言和目标语言
+                self.translator = GoogleTranslator(
+                    source=source_lang,
+                    target=target_lang
+                )
                 result = self.translator.translate(text=text)
                 print(f"[翻译] 成功: {result[:50]}..." if len(result) > 50 else f"[翻译] 成功: {result}")
                 return result
@@ -54,6 +118,8 @@ class ExcelTranslator:
                     return text
                 time.sleep(delay)
                 delay = min(self.max_delay, delay * 2)
+        
+        return text
 
     def translate_batch(self, texts):
         """批量翻译文本"""
@@ -174,7 +240,7 @@ class ExcelTranslator:
                                 if progress_callback:
                                     batch_end = min(i + self.batch_size, total_unique)
                                     # 第二行显示批次进度
-                                    status_line2 = f"处理进度: 第{i+1}-{batch_end}条(共{total_unique}条唯一值) | 已完成{int((i/total_unique)*100)}%"
+                                    status_line2 = f"处理进度: 第{i+1}-{batch_end}条(共{total_unique}条唯一值) | 完成{int((i/total_unique)*100)}%"
                                     
                                     # 更新处理速度和预计剩余时间
                                     current_time = time.time()
@@ -220,7 +286,7 @@ class ExcelTranslator:
                         
                         # 更新处理进度
                         cells_processed += len(df)
-                        print(f"[DEBUG] 列 {column} 处理完成")
+                        print(f"[DEBUG] {column} 处理完成")
                         print(f"[DEBUG] DataFrame 列数: {len(df.columns)}")
                         print(f"[DEBUG] 当前列: {list(df.columns)}")
                         
@@ -258,7 +324,7 @@ class TranslatorGUI:
     def __init__(self):
         self.window = tk.Tk()
         self.window.title("Excel翻译工具")
-        self.window.geometry("600x380")  
+        self.window.geometry("600x420")  # 从380改为420
         self.window.overrideredirect(False)
         self.window.attributes('-alpha', 0.98)
         
@@ -286,8 +352,8 @@ class TranslatorGUI:
         
     def setup_style(self):
         """配置Apple风格主题"""
-        # 设置窗口背景色为浅灰色
-        self.window.configure(bg='#F5F5F7')  # Apple 经典的浅灰色背景
+        # 设置窗口背景色为���灰色
+        self.window.configure(bg='#F5F5F7')  # Apple 经典的浅灰色景
         
         # 创建自定义字体
         self.default_font = Font(family='Microsoft YaHei', size=9)
@@ -320,9 +386,9 @@ class TranslatorGUI:
         )
         main_frame.pack(expand=True, fill='both', padx=30, pady=25)
         
-        # 标题区域
+        # 标题区��
         title_frame = tk.Frame(main_frame, bg='white')
-        title_frame.pack(fill='x', pady=(0, 30))
+        title_frame.pack(fill='x', pady=(0, 25))  # 减少底部间距
         
         title_label = tk.Label(
             title_frame,
@@ -349,7 +415,7 @@ class TranslatorGUI:
             bd=1,
             relief='solid'
         )
-        self.file_frame.pack(fill='x', padx=2, pady=(0, 15))
+        self.file_frame.pack(fill='x', padx=2, pady=(0, 12))  # 减少底部间距
         
         # 文件输入框
         self.file_entry = tk.Entry(
@@ -380,7 +446,7 @@ class TranslatorGUI:
         
         # 进度条框架
         self.progress_frame = tk.Frame(main_frame, bg='white')
-        self.progress_frame.pack(fill='x', pady=15)
+        self.progress_frame.pack(fill='x', pady=12)  # 减少上下间距
         
         self.progress_bar = ttk.Progressbar(
             self.progress_frame,
@@ -400,11 +466,11 @@ class TranslatorGUI:
             justify=tk.CENTER,  # 文本居中对齐
             wraplength=450     # 适当调整换行宽度
         )
-        self.status_label.pack(pady=10)
+        self.status_label.pack(pady=8)  # 减少上下间距
         
         # 按钮容器增加上边距
         button_frame = tk.Frame(main_frame, bg='white')
-        button_frame.pack(pady=(25, 20))
+        button_frame.pack(pady=(20, 15))  # 减少上下间距
         
         # 主按钮 - 添加固定宽度
         self.start_button = tk.Button(
@@ -436,6 +502,42 @@ class TranslatorGUI:
             state=tk.DISABLED
         )
         self.cancel_button.pack(side=tk.LEFT, padx=8)
+        
+        # 添加翻译模式选择框架
+        mode_frame = tk.Frame(main_frame, bg='white')
+        mode_frame.pack(pady=(0, 10))  # 减少底部间距
+        
+        # 翻译模式标签
+        mode_label = tk.Label(
+            mode_frame,
+            text="翻译模式：",
+            font=self.default_font,
+            bg='white',
+            fg='#1D1D1F'
+        )
+        mode_label.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 翻译模式选择
+        self.translation_mode = tk.StringVar(value='auto')
+        
+        modes = [
+            ('自动检测', 'auto'),
+            ('中译英', 'zh2en'),
+            ('英译中', 'en2zh')
+        ]
+        
+        for text, mode in modes:
+            rb = tk.Radiobutton(
+                mode_frame,
+                text=text,
+                variable=self.translation_mode,
+                value=mode,
+                bg='white',
+                activebackground='white',
+                font=self.default_font,
+                command=self.on_mode_change
+            )
+            rb.pack(side=tk.LEFT, padx=10)
         
     def bind_hover_effects(self):
         """绑定按钮悬停效果"""
@@ -588,6 +690,22 @@ class TranslatorGUI:
         # 绑定 Ctrl+Enter 快捷键
         self.window.bind('<Control-Return>', start_translation_hotkey)
         
+    def on_mode_change(self):
+        """处理翻译模式变化"""
+        mode = self.translation_mode.get()
+        self.translator.set_translation_mode(mode)
+        
+        # 更新状态提示
+        mode_text = {
+            'auto': '自动检测语言',
+            'zh2en': '中文翻译为英文',
+            'en2zh': '英文翻译为中文'
+        }
+        self.status_label.config(
+            text=f'当前模式: {mode_text[mode]}',
+            fg='#1d1d1f'
+        )
+        
     def run(self):
         """运行GUI程序"""
         # 设置窗口图标
@@ -597,7 +715,7 @@ class TranslatorGUI:
             print("Warning: 图标文件未找到")
         
         # 设置窗口最小尺寸
-        self.window.minsize(600, 400)
+        self.window.minsize(600, 420)  # 同样更新最小尺寸
         # 居中显示
         self.window.eval('tk::PlaceWindow . center')
         # 运行

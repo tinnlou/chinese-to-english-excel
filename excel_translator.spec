@@ -11,7 +11,8 @@ a = Analysis(
         'deep_translator',
         'pandas',
         'openpyxl',
-        'tkinter'
+        'tkinter',
+        'langdetect'  # 添加新的依赖
     ],
     hookspath=[],
     hooksconfig={},
