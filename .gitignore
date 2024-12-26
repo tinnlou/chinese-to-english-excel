@@ -1,20 +1,10 @@
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
 
-# Distribution / packaging
+# Distribution
 build/
 dist/
-*.egg-info/
-
-# Virtual Environment
-venv/
-env/
-
-# PyInstaller
-*.manifest
-*.spec
 
 # IDE
 .idea/
@@ -23,4 +13,4 @@ env/
 # Excel files
 *.xls
 *.xlsx
-!example.xlsx  # 保留示例文件 
+!example.xlsx 

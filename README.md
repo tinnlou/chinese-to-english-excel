@@ -29,13 +29,14 @@
   - tkinter
 
 ## 安装依赖
-bash
+```bash
 pip install -r requirements.txt
+```
 
 ## 从源码运行
-bash
+```bash
 python excel_translator.py
-
+```
 
 ## 注意事项
 
