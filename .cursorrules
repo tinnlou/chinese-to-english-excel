@@ -1,0 +1,23 @@
+{
+  "project": {
+    "type": "python",
+    "description": "Excel中英文翻译工具",
+    "requirements": ["pandas", "openpyxl", "googletrans"]
+  },
+  "code_style": {
+    "language": "python",
+    "indentation": "spaces",
+    "comments": "chinese",
+    "naming_convention": "snake_case"
+  },
+  "output": {
+    "format": "python_script",
+    "documentation": true,
+    "example_usage": true
+  },
+  "constraints": {
+    "error_handling": true,
+    "progress_tracking": true,
+    "input_validation": true
+  }
+}
